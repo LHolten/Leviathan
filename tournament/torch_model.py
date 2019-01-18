@@ -118,7 +118,7 @@ class SymmetricModel(nn.Module):
         self.scale = nn.Parameter(torch.ones(1))
 
     def forward(self, spatial, car_stats):
-        spatial_inv = torch.tensor(spatial)
+        spatial_inv = spatial.clone().detach()
         spatial_inv[:, 0] *= -1  # invert x coordinates
         spatial_inv[:, :, 7] *= -1  # invert own car left normal
         spatial_inv[:, :, 4:6] *= -1  # invert angular velocity
