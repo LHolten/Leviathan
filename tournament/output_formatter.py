@@ -155,5 +155,5 @@ class LeviOutputFormatter:
 def semi_random(power):
     # if random() < 1/200:
     #     return -1
-    return pow(random() - random(), power)
-    # return 0
+    # return pow(random() - random(), power)
+    return -0.5
