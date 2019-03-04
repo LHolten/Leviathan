@@ -22,6 +22,7 @@
 
 import torch
 import torch.nn as nn
+import torch.distributions as dist
 
 
 # not used
@@ -81,32 +82,6 @@ class ActorModel(nn.Module):
         return self.output(result)
 
 
-# not used
-class CombinedActorModel(nn.Module):
-    def __init__(self):
-        nn.Module.__init__(self)
-
-        self.softmax = nn.Softmax(dim=1)
-        self.actor_list = []
-        for i in range(3):
-            m = ActorModel()
-            self.actor_list.append(m)
-            self.add_module('actor' + str(i), m)
-
-    def forward(self, spatial, car_stats):
-        result = torch.stack([self.actor_list[i](spatial, car_stats) for i in range(len(self.actor_list))], dim=2)
-
-        multiplier = self.softmax(result[:, 9, :])
-
-        result2 = torch.stack([result[:, i] * multiplier for i in range(9)], dim=1)
-
-        result3 = torch.cumsum(result2, dim=2)
-
-        result3 = result3[:, :, len(self.actor_list) - 1]
-
-        return result3
-
-
 class SymmetricModel(nn.Module):
     def __init__(self):
         nn.Module.__init__(self)
@@ -118,7 +93,7 @@ class SymmetricModel(nn.Module):
         self.scale = nn.Parameter(torch.ones(1))
 
     def forward(self, spatial, car_stats):
-        spatial_inv = torch.tensor(spatial)
+        spatial_inv = spatial.clone()
         spatial_inv[:, 0] *= -1  # invert x coordinates
         spatial_inv[:, :, 7] *= -1  # invert own car left normal
         spatial_inv[:, :, 4:6] *= -1  # invert angular velocity
@@ -135,7 +110,7 @@ class SymmetricModel(nn.Module):
 
         time_estimate = self.soft_plus(output[:, 13]) / self.soft_plus(output[:, 14])
         # print(time_estimate, self.soft_plus(self.scale * time_estimate))
-        time_distribution = torch.distributions.Normal(time_estimate, self.soft_plus(self.scale) * time_estimate, True)
+        time_distribution = dist.Normal(time_estimate, self.soft_plus(self.scale) * time_estimate, True)
 
         return controls, time_distribution
 

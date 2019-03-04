@@ -20,7 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from random import random
 from rlbot.agents.base_agent import SimpleControllerState
 from rlbot.utils.structures.game_data_struct import GameTickPacket
 import numpy as np
@@ -71,9 +70,10 @@ class LeviOutputFormatter:
         jump = jumping
         if not jumping and can_jump and action[4] > 0:  # start_jump
             jump = True
-            # print("jump")
+
         if jumping and not can_jump and action[5] > 0:  # end_jump
             jump = False
+
         if not jumping and can_double_jump:
             if action[6] > 0:  # double_jump
                 jump = True
@@ -86,7 +86,6 @@ class LeviOutputFormatter:
                 pitch = action[8]  # flip_forward
                 yaw = action[9]  # flip_sideways
                 roll = 0
-                # print("flip")
 
         self.controller_state.pitch = pitch
         self.controller_state.jump = jump
@@ -98,7 +97,7 @@ class LeviOutputFormatter:
 
     @staticmethod
     def get_model_output_dimension():
-        return (13,)
+        return 13,
 
     def format_numpy_output(self, new_controller_state: SimpleControllerState, packet: GameTickPacket) -> \
             (ndarray, ndarray):
@@ -150,8 +149,3 @@ class LeviOutputFormatter:
         # we only need jump, so we can just copy the value
         self.controller_state.jump = new_controller_state.jump
         return result, mask
-
-
-def semi_random(power):
-    # return pow(random() - random(), power)
-    return 0
