@@ -27,6 +27,11 @@ from rlbot.parsing.custom_config import ConfigHeader, ConfigObject
 from rlbot.utils.structures.quick_chats import QuickChats
 import random
 
+from kick_off import init_kick_off, kick_off
+from RLUtilities.GameInfo import GameInfo
+from RLUtilities.Maneuvers import Drive, AirDodge
+
+
 path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, path)  # this is for first process imports
 
@@ -52,8 +57,19 @@ class LeviAgent(BaseAgent):
         self.model = None
         self.input_formatter = None
         self.output_formatter = None
-        self.time = None
+        self.expected_time = None
         self.mood = 0.0
+
+        # initialize kickoff
+        self.info = None
+        self.drive = None
+        self.dodge = None
+        self.controls = SimpleControllerState()
+        self.kickoff = False
+        self.kickoffStart = None
+        self.time = 0
+        self.FPS = 1 / 120
+        self.kickoffTime = 0
 
     def load_config(self, config_object_header: ConfigHeader):
         self.model_path = config_object_header.get('model_path')
@@ -63,6 +79,9 @@ class LeviAgent(BaseAgent):
         self.input_formatter = self.create_input_formatter()
         self.output_formatter = self.create_output_formatter()
         self.model.load_state_dict(self.torch.load(self.get_file_path()))
+
+        # initialize kickoff
+        self.info = GameInfo(self.index, self.team, self.get_field_info())
 
     def get_file_path(self):
         return os.path.join(path, self.model_path)
@@ -78,7 +97,23 @@ class LeviAgent(BaseAgent):
             return self.empty_controller
         if packet.game_cars[self.index].is_demolished:
             return self.empty_controller
+        if self.time >= packet.game_info.seconds_elapsed:
+            return self.empty_controller
 
+        # kickoffs
+        self.FPS = packet.game_info.seconds_elapsed - self.time
+        self.time = packet.game_info.seconds_elapsed
+        self.info.read_packet(packet)
+        self.set_mechanics()
+        prev_kickoff = self.kickoff
+        self.kickoff = packet.game_info.is_kickoff_pause
+        if self.kickoff and not prev_kickoff:
+            init_kick_off(self)
+        if self.kickoff:
+            kick_off(self)
+            return self.controls
+
+        # ML control
         arr = self.input_formatter.create_input_array([packet], batch_size=1)
 
         assert (arr[0].shape == (1, 3, 9))
@@ -87,6 +122,12 @@ class LeviAgent(BaseAgent):
         output = self.advanced_step(arr)
 
         return self.output_formatter.format_model_output(output, [packet], batch_size=1)[0]
+
+    def set_mechanics(self):
+        if self.drive is None:
+            self.drive = Drive(self.info.my_car, self.info.ball.pos, 1399)
+        if self.dodge is None:
+            self.dodge = AirDodge(self.info.my_car, 0.25, self.info.ball.pos)
 
     def create_input_formatter(self):
         return LeviInputFormatter(self.team, self.index)
@@ -117,12 +158,12 @@ class LeviAgent(BaseAgent):
     def quick_chat(self, t):
         new_time = t.mean.item()
 
-        if self.time is None:
-            self.time = new_time
+        if self.expected_time is None:
+            self.expected_time = new_time
             return
 
         self.mood *= 0.995
-        self.mood += (self.time - new_time) * 0.005
+        self.mood += (self.expected_time - new_time) * 0.005
 
         if self.mood > 0.075:
             self.send_quick_chat(False, random.choice(positive))
@@ -131,4 +172,4 @@ class LeviAgent(BaseAgent):
             self.send_quick_chat(False, random.choice(negative))
             self.mood = 0
 
-        self.time = new_time
+        self.expected_time = new_time

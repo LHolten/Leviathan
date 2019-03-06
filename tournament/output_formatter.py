@@ -80,7 +80,6 @@ class LeviOutputFormatter:
                 pitch = 0
                 yaw = 0
                 roll = 0
-                # print("double")
             elif action[7] > 0:  # flip
                 jump = True
                 pitch = action[8]  # flip_forward
